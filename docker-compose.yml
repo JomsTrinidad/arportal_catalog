@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: aruser
+      POSTGRES_PASSWORD: arpass
+      POSTGRES_DB: arportal
+    ports: ["5432:5432"]
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    ports: ["8000:8000"]
+    environment:
+      DATABASE_URL: postgres://aruser:arpass@db:5432/arportal
+      SECRET_KEY: change-me
+      DEBUG: "True"
+    depends_on: [db]

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load map_tags %}
+{% block content %}
+<h4>Row {{ row.row_id }}</h4>
+<table class="table table-sm">
+  <tbody>
+    <tr><th>map_name</th><td>{{ row.map_name }}</td></tr>
+    <tr><th>deleted_flag</th><td>{{ row.deleted_flag }}</td></tr>
+    <tr><th>version</th><td>{{ row.version }}</td></tr>
+  </tbody>
+</table>
+<div class="btn-group mb-3">
+  <a class="btn btn-primary btn-sm" href="./edit/">Edit</a>
+  <a class="btn btn-outline-danger btn-sm" href="./delete/">Request Delete</a>
+  <a class="btn btn-outline-success btn-sm" href="./undelete/">Request Undelete</a>
+</div>
+<h5>Business Fields</h5>
+<div class="table-responsive">
+  <table class="table table-bordered table-sm">
+    <thead><tr><th>Field</th><th>Value</th></tr></thead>
+    <tbody>
+      {% for i in FIELD_RANGE %}
+        <tr><th>string_{{ i|stringformat:"02d" }}</th><td>{% string_value row i %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

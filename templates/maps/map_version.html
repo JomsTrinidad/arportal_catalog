@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load map_tags %}
+{% block content %}
+<h3>{{ map_name }} (version {{ version }})</h3>
+{% if info and info.description %}
+<p class="text-muted">{{ info.description }}</p>
+{% endif %}
+
+<div class="table-responsive">
+  <table class="table table-bordered table-hover table-sm">
+    <thead>
+      <tr>
+        <th>index_id</th>
+        <th>row_id</th>
+        <th>deleted_flag</th>
+        {% for i in FIELD_RANGE %}
+          <th>string_{{ i|stringformat:"02d" }}</th>
+        {% endfor %}
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.index_id }}</td>
+        <td><a href="{% url 'maps:detail' row.row_id %}">{{ row.row_id }}</a></td>
+        <td>{{ row.deleted_flag }}</td>
+        {% for i in FIELD_RANGE %}
+          <td>{% string_value row i %}</td>
+        {% endfor %}
+        <td class="text-nowrap">
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'maps:propose_edit' row.row_id %}">Propose Edit</a>
+          {% if user.is_staff %}
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'maps:edit' row.row_id %}">Edit (direct)</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

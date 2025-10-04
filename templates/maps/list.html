@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% load render_table from django_tables2 %}
+{% block content %}
+<h3>Rows</h3>
+<form method="get" class="row g-2 mb-3">
+  {{ filter.form.as_p }}
+  <div><button class="btn btn-secondary btn-sm">Filter</button></div>
+</form>
+{% render_table table %}
+{% endblock %}

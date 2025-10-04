@@ -1,0 +1,28 @@
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-header">
+    Propose Edit — {{ row.map_name }} (row {{ row.row_id }})
+  </div>
+  <div class="card-body">
+    <form
+      method="post"
+      hx-post="{% url 'maps:propose_edit_fragment' row.row_id %}?sort={{ sort }}&dir={{ direction }}"
+      hx-target="#detail-pane"
+      hx-swap="innerHTML"
+    >
+      {% csrf_token %}
+      {{ form.as_p }}
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary">Submit for Approval</button>
+        <a
+          href="#"
+          class="btn btn-outline-secondary"
+          hx-get="{% url 'maps:map_version_fragment' row.map_name row.version %}?sort={{ sort }}&dir={{ direction }}"
+          hx-target="#detail-pane"
+          hx-swap="innerHTML"
+        >Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

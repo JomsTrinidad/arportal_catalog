@@ -1,0 +1,157 @@
+{% load map_tags %}
+<div class="card shadow-sm">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <div>
+      <strong>{{ map_name }}</strong>
+      <span class="text-muted">v{{ version }}</span>
+    </div>
+    <div>
+      {% if info and info.description %}
+        <small class="text-muted">{{ info.description }}</small>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card-body p-0">
+    <div class="table-responsive table-scroll">
+      <table class="table table-bordered table-hover table-sm mb-0 table-banded">
+        <thead>
+          <!-- Column labels (click to sort) -->
+          <tr>
+            <th class="rownum-sticky" style="width:3.5rem; text-align:center; background:#f2f3f5;">#</th>
+
+            <th>
+              <!-- Actions not sortable -->
+              <span class="th-label">Actions</span>
+            </th>
+
+            <th>
+              {% with field="row_id" %}
+                <a
+                  href="#"
+                  class="th-sort"
+                  hx-get="{% url 'maps:map_version_fragment' map_name version %}?sort={{ field }}&dir={% if sort == field and direction == 'asc' %}desc{% else %}asc{% endif %}"
+                  hx-target="#detail-pane"
+                  hx-swap="innerHTML"
+                >
+                  row_id
+                  {% if sort == field %}
+                    <span class="sort-arrow">{% if direction == 'asc' %}▲{% else %}▼{% endif %}</span>
+                  {% endif %}
+                </a>
+              {% endwith %}
+            </th>
+
+            <th>
+              {% with field="deleted_flag" %}
+                <a
+                  href="#"
+                  class="th-sort"
+                  hx-get="{% url 'maps:map_version_fragment' map_name version %}?sort={{ field }}&dir={% if sort == field and direction == 'asc' %}desc{% else %}asc{% endif %}"
+                  hx-target="#detail-pane"
+                  hx-swap="innerHTML"
+                >
+                  deleted_flag
+                  {% if sort == field %}
+                    <span class="sort-arrow">{% if direction == 'asc' %}▲{% else %}▼{% endif %}</span>
+                  {% endif %}
+                </a>
+              {% endwith %}
+            </th>
+
+            <th>
+              {% with field="row_type" %}
+                <a
+                  href="#"
+                  class="th-sort"
+                  hx-get="{% url 'maps:map_version_fragment' map_name version %}?sort={{ field }}&dir={% if sort == field and direction == 'asc' %}desc{% else %}asc{% endif %}"
+                  hx-target="#detail-pane"
+                  hx-swap="innerHTML"
+                >
+                  row_type
+                  {% if sort == field %}
+                    <span class="sort-arrow">{% if direction == 'asc' %}▲{% else %}▼{% endif %}</span>
+                  {% endif %}
+                </a>
+              {% endwith %}
+            </th>
+
+            {% for i in FIELD_RANGE %}
+              {% with idx=i|stringformat:"02d" %}
+              {% with field="string_"|add:idx %}
+              <th>
+                <a
+                  href="#"
+                  class="th-sort"
+                  hx-get="{% url 'maps:map_version_fragment' map_name version %}?sort={{ field }}&dir={% if sort == field and direction == 'asc' %}desc{% else %}asc{% endif %}"
+                  hx-target="#detail-pane"
+                  hx-swap="innerHTML"
+                  title="Sort by string_{{ idx }}"
+                >
+                  string_{{ idx }}
+                  {% if sort == field %}
+                    <span class="sort-arrow">{% if direction == 'asc' %}▲{% else %}▼{% endif %}</span>
+                  {% endif %}
+                </a>
+              </th>
+              {% endwith %}
+              {% endwith %}
+            {% endfor %}
+          </tr>
+
+          {% if header %}
+          <!-- Sticky data header row (field names) -->
+          <tr class="field-header">
+            <th class="rownum-sticky" style="background:#0d6efd;"></th>
+            <th><!-- actions --></th>
+            <th><!-- row_id --></th>
+            <th><!-- deleted_flag --></th>
+            <th>{{ header.row_type }}</th>
+            {% for i in FIELD_RANGE %}
+              {% string_value header i as val %}
+              <th>{{ val }}</th>
+            {% endfor %}
+          </tr>
+          {% endif %}
+        </thead>
+
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <!-- Row number (1-based) -->
+            <td class="rownum-sticky row-num text-center">{{ forloop.counter }}</td>
+
+            <!-- Actions -->
+            <td class="text-nowrap">
+                <a
+                  href="#"
+                  class="btn btn-sm btn-outline-primary"
+                  hx-get="{% url 'maps:propose_edit_fragment' row.row_id %}?sort={{ sort }}&dir={{ direction }}"
+                  hx-target="#detail-pane"
+                  hx-swap="innerHTML"
+                >Propose Edit</a>
+            </td>
+
+            <td>
+              <a href="{% url 'maps:detail' row.row_id %}" title="{{ row.row_id }}">{{ row.row_id }}</a>
+            </td>
+            <td>{{ row.deleted_flag }}</td>
+            <td>{{ row.row_type }}</td>
+
+            {% for i in FIELD_RANGE %}
+              {% string_value row i as val %}
+              <td class="{% if val|longer_than:30 %}is-long{% endif %}" title="{{ val }}">{{ val }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Footer with total rows -->
+  <div class="card-footer d-flex justify-content-between align-items-center small">
+    <div>Total rows: <strong>{{ total_rows }}</strong></div>
+    <div class="text-muted">{{ map_name }} v{{ version }}</div>
+  </div>
+</div>

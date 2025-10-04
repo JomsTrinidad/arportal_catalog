@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h4>Propose Edit — {{ row.map_name }} (row {{ row.row_id }})</h4>
+<form method="post">{% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn btn-primary">Submit for Approval</button>
+  <a class="btn btn-outline-secondary" href="{% url 'maps:map_version' row.map_name row.version %}">Cancel</a>
+</form>
+<p class="text-muted mt-2">
+  This will create a <strong>pending Change Request</strong> for approvers to review. No data is updated until approval.
+</p>
+{% endblock %}
