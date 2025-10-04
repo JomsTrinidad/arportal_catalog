@@ -9,7 +9,7 @@
       {% if info and info.description %}
         <small class="text-muted me-2">{{ info.description }}</small>
       {% endif %}
-      <!-- NEW: switch to full-page edit mode -->
+      <!-- Preview only; switch to full-page edit mode -->
       <a href="{% url 'maps:edit_mode' map_name version %}"
          class="btn btn-sm btn-primary">
         Edit this map
@@ -21,7 +21,6 @@
     <div class="table-responsive table-scroll">
       <table class="table table-bordered table-hover table-sm mb-0 table-banded">
         <thead>
-          <!-- Column labels (click to sort in preview still works if your view supports it) -->
           <tr>
             <th class="rownum-sticky" style="width:3.5rem; text-align:center; background:#f2f3f5;">#</th>
             <th>row_id</th>
@@ -30,10 +29,10 @@
             {% for i in FIELD_RANGE %}
               <th>string_{{ i|stringformat:"02d" }}</th>
             {% endfor %}
+            <th title="relative time since modified">Last Modified</th>
           </tr>
 
           {% if header %}
-          <!-- Sticky data header row (field names) -->
           <tr class="field-header">
             <th class="rownum-sticky" style="background:#4682B4;"></th>
             <th><!-- row_id --></th>
@@ -43,6 +42,7 @@
               {% string_value header i as val %}
               <th>{{ val }}</th>
             {% endfor %}
+            <th><!-- last modified --></th>
           </tr>
           {% endif %}
         </thead>
@@ -58,6 +58,7 @@
               {% string_value row i as val %}
               <td class="{% if val|longer_than:30 %}is-long{% endif %}" title="{{ val }}">{{ val }}</td>
             {% endfor %}
+            <td class="text-nowrap" title="{{ row.modified_dttm }}">{{ row.modified_dttm|timesince }} ago</td>
           </tr>
           {% endfor %}
         </tbody>

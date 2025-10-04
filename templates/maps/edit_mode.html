@@ -11,21 +11,31 @@
   </ol>
 </nav>
 
-<div class="d-flex justify-content-between align-items-center mb-2">
-  <div>
+<div class="row g-3 mb-2">
+  <div class="col-md-8">
     <h4 class="mb-0">{{ map_name }} <small class="text-muted">v{{ version }}</small></h4>
     {% if info and info.description %}
       <div class="text-muted small">{{ info.description }}</div>
     {% endif %}
   </div>
-  <div class="d-flex gap-2">
-    <a href="{% url 'maps:add_row' map_name version %}" class="btn btn-success">Add New Row</a>
-    <a href="{% url 'maps:catalog' %}"
-       class="btn btn-outline-secondary"
-       onclick="return confirm('Discard and leave Edit Mode? You will lose any unsaved forms.');">
-       Cancel
-    </a>
+  <div class="col-md-4">
+    <div class="d-flex flex-wrap gap-3 justify-content-md-end">
+      <div><span class="meta-label">Last Modified:</span> <span class="meta-value">{{ last_modified }}</span></div>
+      <div><span class="meta-label">Created:</span> <span class="meta-value">{{ created }}</span></div>
+    </div>
   </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <div class="btn-group">
+    <a href="{% url 'maps:edit_mode' map_name version %}?new=1&new_row_type=values#new-row" class="btn btn-success">Add New Row</a>
+    <a href="{% url 'maps:edit_mode' map_name version %}?new=1&new_row_type=header#new-row" class="btn btn-outline-success">Add New Header</a>
+  </div>
+  <a href="{% url 'maps:catalog' %}"
+     class="btn btn-outline-secondary"
+     onclick="return confirm('Discard and leave Edit Mode? You will lose any unsaved forms.');">
+     Cancel
+  </a>
 </div>
 
 <div class="card shadow-sm">
@@ -61,9 +71,27 @@
           {% for row in rows %}
           <tr>
             <td class="rownum-sticky text-center">{{ forloop.counter }}</td>
-            <td class="text-nowrap">
-              <a class="btn btn-sm btn-outline-primary" href="{% url 'maps:propose_edit_full' row.row_id %}">Propose Edit</a>
-            </td>
+
+                <td class="text-nowrap">
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'maps:propose_edit_full' row.row_id %}">Propose Edit</a>
+                {% if row.row_type != "header" %}
+                  {% if row.deleted_flag|stringformat:"s"|upper == "Y" %}
+                    <a class="btn btn-sm btn-outline-success"
+                      href="{% url 'maps:request_undelete' row.row_id %}"
+                      onclick="return confirm('Request UNDELETE for this row?');">
+                      Request Undelete
+                    </a>
+                  {% else %}
+                    <a class="btn btn-sm btn-outline-danger"
+                      href="{% url 'maps:request_delete' row.row_id %}"
+                      onclick="return confirm('Request DELETE for this row?');">
+                      Request Delete
+                    </a>
+                  {% endif %}
+                {% endif %}
+              </td>
+
+
             <td><a href="{% url 'maps:detail' row.row_id %}" title="{{ row.row_id }}">{{ row.row_id }}</a></td>
             <td>{{ row.deleted_flag }}</td>
             <td>{{ row.row_type }}</td>
@@ -73,6 +101,39 @@
             {% endfor %}
           </tr>
           {% endfor %}
+
+          {% if show_new %}
+          <!-- Inline new-row editor at bottom -->
+          <tr id="new-row" class="inline-new-row">
+            <td class="rownum-sticky text-center">*</td>
+            <td class="text-nowrap"><span class="badge text-bg-success">New</span></td>
+            <td colspan="{{ FIELD_RANGE|length|add:3 }}">
+              <form method="post" action="{% url 'maps:queue_insert' map_name version %}">
+                {% csrf_token %}
+                <div class="row g-2">
+                  <div class="col-md-2">
+                    <label class="form-label">row_type</label>
+                    <select name="row_type" class="form-select">
+                      <option value="values" {% if new_row_type != 'header' %}selected{% endif %}>values</option>
+                      <option value="header" {% if new_row_type == 'header' %}selected{% endif %}>header</option>
+                    </select>
+                  </div>
+                  {% for i in FIELD_RANGE|slice:":6" %}
+                  <div class="col-md-2">
+                    <label class="form-label">string_{{ i|stringformat:"02d" }}</label>
+                    <input type="text" class="form-control" name="string_{{ i|stringformat:'02d' }}">
+                  </div>
+                  {% endfor %}
+                </div>
+                <div class="mt-2 d-flex gap-2">
+                  <button class="btn btn-success">Queue Insert</button>
+                  <a href="{% url 'maps:edit_mode' map_name version %}" class="btn btn-outline-secondary"
+                     onclick="return confirm('Cancel adding a new row?');">Cancel</a>
+                </div>
+              </form>
+            </td>
+          </tr>
+          {% endif %}
         </tbody>
       </table>
     </div>

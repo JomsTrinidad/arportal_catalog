@@ -1,7 +1,7 @@
 import csv
 import io
 
-from django.db.models import Case, When, Value, IntegerField
+from django.db.models import Case, When, Value, IntegerField, Max, Min
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -18,7 +18,6 @@ from .tables import RowTable
 
 from django.template.loader import render_to_string
 from django.http import HttpResponse
-
 
 
 def dashboard(request):
@@ -403,12 +402,11 @@ def propose_edit_fragment(request, row_id: str):
 @login_required
 def edit_mode(request, map_name: str, version: int):
     """
-    Full-page edit mode:
+    Full-page edit mode with:
     - Breadcrumbs
+    - Map meta (version, map_name, description, last_modified, created)
     - Per-row 'Propose Edit'
-    - 'Add New Row'
-    - Cancel (with confirm) back to catalog
-    Header row stays on top; values are listed in stable index order.
+    - 'Add New Row' (inline at bottom if ?new=1)
     """
     base_qs = AuthoredMapRow.objects.filter(map_name=map_name, version=version)
     qs = base_qs.annotate(
@@ -423,6 +421,13 @@ def edit_mode(request, map_name: str, version: int):
     values = qs.exclude(row_type="header")
     info = MapInfo.objects.filter(map_name=map_name).first()
 
+    agg = base_qs.aggregate(last_modified=Max("modified_dttm"), created=Min("load_dttm"))
+    last_modified = agg["last_modified"]
+    created = agg["created"]
+
+    show_new = request.GET.get("new") == "1"
+    new_row_type = request.GET.get("new_row_type", "values")  # 'values' or 'header'
+
     return render(
         request,
         "maps/edit_mode.html",
@@ -433,6 +438,10 @@ def edit_mode(request, map_name: str, version: int):
             "rows": values,
             "total_rows": values.count(),
             "info": info,
+            "last_modified": last_modified,
+            "created": created,
+            "show_new": show_new,
+            "new_row_type": new_row_type,
         },
     )
 
@@ -516,3 +525,125 @@ def add_row(request, map_name: str, version: int):
         form = AuthoredMapRowForm(instance=temp)
 
     return render(request, "maps/add_row.html", {"form": form, "map_name": map_name, "version": version})
+
+# -----------------------------
+# Queue the inline insert (new-row at bottom)
+# -----------------------------
+
+@login_required
+def queue_insert(request, map_name: str, version: int):
+    """
+    Handle inline new-row form at the bottom of Edit Mode.
+    Creates a PENDING ChangeRequest(operation='insert').
+    """
+    if request.method != "POST":
+        return redirect("maps:edit_mode", map_name=map_name, version=version)
+
+    payload = {"map_name": map_name, "operation": "insert", "provider_sid": request.user.username}
+    # Accept row_type + string_01..string_65
+    row_type = request.POST.get("row_type") or "values"
+    payload["row_type"] = row_type
+
+    for i in range(1, 66):
+        key = f"string_{i:02d}"
+        val = request.POST.get(key)
+        if val:
+            payload[key] = val
+
+    ChangeRequest.objects.create(
+        actor=request.user,
+        map_name=map_name,
+        payload=payload,
+    )
+    messages.success(request, "Insert request submitted for approval.")
+    return redirect("maps:edit_mode", map_name=map_name, version=version)
+
+# -----------------------------
+# Change summary page (counts of added/updated/deleted + predicted version)
+# -----------------------------
+
+@login_required
+def change_summary(request, map_name: str, version: int):
+    """
+    Show a summary of the current user's pending changes for this map.
+    Counts inserts/updates/deletes and predicts the version bump if 'replace' is requested.
+    """
+    pending = ChangeRequest.objects.filter(map_name=map_name, status="PENDING", actor=request.user)
+    added = pending.filter(payload__operation="insert").count()
+    updated = pending.filter(payload__operation="update").count()
+    deleted = pending.filter(payload__operation="delete").count()
+
+    replace = request.GET.get("replace") == "1"
+    predicted_version = version + 1 if replace else version
+
+    return render(
+        request,
+        "maps/change_summary.html",
+        {
+            "map_name": map_name,
+            "version": version,
+            "added": added,
+            "updated": updated,
+            "deleted": deleted,
+            "replace": replace,
+            "predicted_version": predicted_version,
+        },
+    )
+
+@login_required
+def request_delete(request, row_id: str):
+    """
+    Queue a delete request for a row (soft-delete when approved).
+    Header rows cannot be deleted.
+    """
+    row = get_object_or_404(AuthoredMapRow, row_id=row_id)
+
+    if row.row_type == "header":
+        messages.error(request, "Header rows cannot be deleted. You may add new headers but not remove them.")
+        return redirect("maps:edit_mode", map_name=row.map_name, version=row.version)
+
+    # Already deleted?
+    if str(row.deleted_flag).upper() == "Y":
+        messages.info(request, "Row is already marked deleted.")
+        return redirect("maps:edit_mode", map_name=row.map_name, version=row.version)
+
+    ChangeRequest.objects.create(
+        actor=request.user,
+        map_name=row.map_name,
+        target_row_id=row.row_id,
+        payload={
+            "operation": "delete",
+            "row_id": row.row_id,
+            "map_name": row.map_name,
+            "provider_sid": request.user.username,
+        },
+    )
+    messages.success(request, "Delete request submitted for approval.")
+    return redirect("maps:edit_mode", map_name=row.map_name, version=row.version)
+
+
+@login_required
+def request_undelete(request, row_id: str):
+    """
+    Queue an undelete request for a row (restores when approved).
+    """
+    row = get_object_or_404(AuthoredMapRow, row_id=row_id)
+
+    # Already active?
+    if str(row.deleted_flag).upper() != "Y":
+        messages.info(request, "Row is not deleted.")
+        return redirect("maps:edit_mode", map_name=row.map_name, version=row.version)
+
+    ChangeRequest.objects.create(
+        actor=request.user,
+        map_name=row.map_name,
+        target_row_id=row.row_id,
+        payload={
+            "operation": "undelete",
+            "row_id": row.row_id,
+            "map_name": row.map_name,
+            "provider_sid": request.user.username,
+        },
+    )
+    messages.success(request, "Undelete request submitted for approval.")
+    return redirect("maps:edit_mode", map_name=row.map_name, version=row.version)

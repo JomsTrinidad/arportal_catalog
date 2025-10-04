@@ -18,4 +18,11 @@ urlpatterns = [
     path("edit-mode/<str:map_name>/<int:version>/", views.edit_mode, name="edit_mode"),
     path("propose/full/<str:row_id>/", views.propose_edit_full, name="propose_edit_full"),
     path("add-row/<str:map_name>/<int:version>/", views.add_row, name="add_row"),
+
+    # Inline insert handler + summary
+    path("queue-insert/<str:map_name>/<int:version>/", views.queue_insert, name="queue_insert"),
+    path("change-summary/<str:map_name>/<int:version>/", views.change_summary, name="change_summary"),
+    path("request-delete/<str:row_id>/", views.request_delete, name="request_delete"),
+    path("request-undelete/<str:row_id>/", views.request_undelete, name="request_undelete"),
+
 ]

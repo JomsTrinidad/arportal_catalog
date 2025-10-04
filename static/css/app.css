@@ -77,3 +77,23 @@ td.is-long {
 
 /* Slight padding tweaks */
 .table-hover.table-sm > :not(caption) > * > * { padding: 0.45rem 0.5rem; }
+
+
+/* --- Edit Mode visual affordances --- */
+.form-original { color: #6c757d; }              /* gray current values */
+.row-changed { background: #fff6e5 !important; }/* soft highlight when changed */
+.row-changed input, .row-changed select, .row-changed textarea {
+  color: #202020;
+  font-weight: 600;
+}
+
+/* Inline new-row editor at bottom */
+.inline-new-row {
+  background: #eef9f1;
+  border-top: 2px solid #86d4a5;
+}
+.inline-new-row .form-control { background: #ffffff; }
+
+/* Tiny muted meta labels */
+.meta-label { font-size: 0.85rem; color: #6c757d; }
+.meta-value { font-weight: 600; }

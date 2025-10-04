@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'maps:catalog' %}">Home</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'maps:catalog' %}">Search Results</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'maps:edit_mode' map_name version %}">{{ map_name }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Change Summary</li>
+  </ol>
+</nav>
+
+<h4 class="mb-3">Change Summary — {{ map_name }} <small class="text-muted">v{{ version }}</small></h4>
+
+<ul class="list-group mb-3">
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    Rows to Insert <span class="badge text-bg-success">{{ added }}</span>
+  </li>
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    Rows to Update <span class="badge text-bg-primary">{{ updated }}</span>
+  </li>
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    Rows to Delete <span class="badge text-bg-danger">{{ deleted }}</span>
+  </li>
+</ul>
+
+<div class="mb-3">
+  <form method="get" action="">
+    <input type="hidden" name="replace" value="1">
+    <button class="btn btn-outline-warning">Predict version if REPLACE map: {{ version }} → {{ version|add:1 }}</button>
+  </form>
+  {% if replace %}
+  <div class="alert alert-warning mt-2">
+    Predicted version on approval: <strong>{{ predicted_version }}</strong> (replace)
+  </div>
+  {% else %}
+  <div class="alert alert-info mt-2">
+    Predicted version on approval: <strong>{{ predicted_version }}</strong> (no replace)
+  </div>
+  {% endif %}
+</div>
+
+<div class="d-flex gap-2">
+  <a href="{% url 'maps:approvals' %}" class="btn btn-primary">Go to Approvals</a>
+  <a href="{% url 'maps:edit_mode' map_name version %}" class="btn btn-outline-secondary">Back to Edit Mode</a>
+</div>
+{% endblock %}

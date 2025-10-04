@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load map_tags %}
 {% block content %}
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb">
@@ -11,17 +12,50 @@
 </nav>
 
 <h4 class="mb-3">Propose Edit — {{ row.map_name }} <small class="text-muted">v{{ row.version }}</small></h4>
-<form method="post">
+
+<form method="post" id="edit-form">
   {% csrf_token %}
-  {{ form.as_p }}
-  <div class="d-flex gap-2">
+  <div id="edit-fieldset" class="p-3 border rounded">
+    {{ form.as_p }}
+  </div>
+
+  <div class="d-flex gap-2 mt-3">
     <button class="btn btn-primary">Submit for Approval</button>
     <a href="{% url 'maps:edit_mode' row.map_name row.version %}"
        class="btn btn-outline-secondary"
        onclick="return confirm('Discard changes and go back?');">Cancel</a>
   </div>
 </form>
+
 <p class="text-muted mt-2">
-  Submitting will create a <strong>pending Change Request</strong>. Data is not updated until approved.
+  Current values appear in <span class="form-original">gray</span>. Any change will highlight this form’s section to indicate an updated row.
 </p>
+
+<script>
+(function() {
+  const fieldset = document.getElementById('edit-fieldset');
+  // Add 'form-original' class to inputs initially (for gray tone)
+  const controls = fieldset.querySelectorAll('input, select, textarea');
+  controls.forEach(el => el.classList.add('form-original'));
+
+  // When any input changes from its initial value, mark the container as changed
+  const initial = new Map();
+  controls.forEach(el => initial.set(el.name, el.value));
+
+  function updateChangedState() {
+    let changed = false;
+    controls.forEach(el => {
+      if (initial.get(el.name) !== el.value) {
+        changed = true;
+      }
+    });
+    fieldset.classList.toggle('row-changed', changed);
+  }
+
+  controls.forEach(el => {
+    el.addEventListener('input', updateChangedState);
+    el.addEventListener('change', updateChangedState);
+  });
+})();
+</script>
 {% endblock %}
