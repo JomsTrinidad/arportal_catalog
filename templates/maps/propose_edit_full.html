@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'maps:catalog' %}">Home</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'maps:catalog' %}">Search Results</a></li>
+    <li class="breadcrumb-item">Map Name</li>
+    <li class="breadcrumb-item"><a href="{% url 'maps:edit_mode' row.map_name row.version %}">{{ row.map_name }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Propose Edit</li>
+  </ol>
+</nav>
+
+<h4 class="mb-3">Propose Edit — {{ row.map_name }} <small class="text-muted">v{{ row.version }}</small></h4>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary">Submit for Approval</button>
+    <a href="{% url 'maps:edit_mode' row.map_name row.version %}"
+       class="btn btn-outline-secondary"
+       onclick="return confirm('Discard changes and go back?');">Cancel</a>
+  </div>
+</form>
+<p class="text-muted mt-2">
+  Submitting will create a <strong>pending Change Request</strong>. Data is not updated until approved.
+</p>
+{% endblock %}

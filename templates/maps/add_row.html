@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'maps:catalog' %}">Home</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'maps:catalog' %}">Search Results</a></li>
+    <li class="breadcrumb-item">Map Name</li>
+    <li class="breadcrumb-item"><a href="{% url 'maps:edit_mode' map_name version %}">{{ map_name }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Add New Row</li>
+  </ol>
+</nav>
+
+<h4 class="mb-3">Add New Row — {{ map_name }} <small class="text-muted">v{{ version }}</small></h4>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <div class="d-flex gap-2">
+    <button class="btn btn-success">Queue Insert</button>
+    <a href="{% url 'maps:edit_mode' map_name version %}"
+       class="btn btn-outline-secondary"
+       onclick="return confirm('Cancel adding a new row?');">Cancel</a>
+  </div>
+</form>
+<p class="text-muted mt-2">
+  This queues an <strong>insert</strong> as a pending Change Request. Approvers will review before it appears in the map.
+</p>
+{% endblock %}

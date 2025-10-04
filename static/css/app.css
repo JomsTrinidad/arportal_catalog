@@ -1,87 +1,79 @@
-/* Scroll & sticky header rows (you already have some of these; keep or merge) */
+/* Scroll & sticky header rows */
 .table-scroll { max-height: 60vh; overflow: auto; }
 .table-scroll table { border-collapse: separate; border-spacing: 0; }
 
-/* Column-label header (top) */
-.table-scroll thead > tr:first-child > th {
-  position: sticky; top: 0; z-index: 9;
-  background: #ffffff;
-  border-bottom: 1px solid rgba(0,0,0,0.08);
+/* Deactivate any old "first column sticky" behavior on generic first-child cells */
+.table-scroll td:first-child,
+.table-scroll th:first-child {
+  position: static;
+  background: #f5f5f5;
 }
 
-
-
 /* Subtle borders: deemphasize verticals, keep light horizontals */
-.table-scroll th, .table-scroll td {
-  border-right: 0; border-left: 0;
+.table-scroll th,
+.table-scroll td {
+  border-right: 0;
+  border-left: 0;
   border-bottom: 1px solid rgba(0,0,0,0.06);
 }
 
-/* Zebra banding for value rows */
-.table-banded tbody tr:nth-child(odd)  { background: rgba(13,110,253,0.03); }
-.table-banded tbody tr:nth-child(even) { background: rgba(13,110,253,0.03); }
+/* Zebra banding for value rows (soft steel-blue tints) */
+.table-banded tbody tr:nth-child(odd)  { background: rgba(70,130,180,0.03); }
+.table-banded tbody tr:nth-child(even) { background: rgba(70,130,180,0.015); }
 
 /* Long content (>30 chars) compress softly; short values expand naturally */
-td.is-long { max-width: 30ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* --- Row number column as the *only* sticky left column --- */
-
-/* Remove old "first-child sticky" rules if you had them */
-.table-scroll td:first-child, .table-scroll th:first-child { position: static; }
-
-/* Make row-number column sticky left with a gray background */
-.table-scroll .rownum-sticky {
-  position: sticky; left: 0;
-  background: #f2f3f5;
+td.is-long {
+  max-width: 30ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Ensure header row-number cells stay above body cells */
-.table-scroll thead .rownum-sticky { z-index: 10; top: 0; }
-.table-scroll thead tr.field-header .rownum-sticky { z-index: 9; top: 2.4rem; }
-
-/* Body row-number cells should sit *under* sticky headers so they "disappear" behind */
-.table-scroll tbody .rownum-sticky { z-index: 1; }
-
-/* Slight padding tweaks */
-.table-hover.table-sm > :not(caption) > * > * { padding: 0.45rem 0.5rem; }
-
-
-
-/* Column-label header (top) — dark gray text on white */
+/* Column-label header (top) — dark gray text on very light gray */
 .table-scroll thead > tr:first-child > th {
   position: sticky;
   top: 0;
   z-index: 9;
-  background: #F5F5F5;
-  color: #696969;      /* dark gray font */
-  font-weight: 600;    /* a bit bolder for readability */
-  border-bottom: 1px solid rgba(0,0,0,0.08);
+  background: #f5f5f5;
+  color: #696969;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(105,105,105,0.08);
 }
 
-/* Data header row (row_type='header') — keep white text on blue */
+/* Data header row (row_type='header') — white text on steel blue */
 .table-scroll thead tr.field-header th {
   position: sticky;
-  top: 2.4rem;
+  top: 2.4rem;               /* adjust if your top header height differs */
   z-index: 8;
   background: #4682B4;
-  color: #ffffff;      /* white font */
+  color: #ffffff;
   font-weight: 600;
-  border-bottom: 2px solid rgba(13,110,253,0.8);
+  border-bottom: 2px solid rgba(70,130,180,0.8);
 }
 
-/* Clickable column headers */
+/* Clickable column headers (sort) */
 .th-sort {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   text-decoration: none;
-  color: #212529;         /* match dark gray header text */
+  color: #212529;
   font-weight: 600;
 }
 .th-sort:hover { text-decoration: underline; }
+.sort-arrow { font-size: 0.8em; opacity: 0.7; line-height: 1; }
 
-.sort-arrow {
-  font-size: 0.8em;
-  opacity: 0.7;
-  line-height: 1;
+/* Row number column: make THIS the only sticky-left column */
+.table-scroll .rownum-sticky {
+  position: sticky;          /* override the generic first-child reset above */
+  left: 0;
+  background: #f2f3f5;
 }
+
+/* Keep row-number header cells above body cells, and under the top header as needed */
+.table-scroll thead .rownum-sticky { z-index: 10; top: 0; }
+.table-scroll thead tr.field-header .rownum-sticky { z-index: 9; top: 2.4rem; }
+.table-scroll tbody .rownum-sticky { z-index: 1; }  /* lets it slide under sticky headers */
+
+/* Slight padding tweaks */
+.table-hover.table-sm > :not(caption) > * > * { padding: 0.45rem 0.5rem; }

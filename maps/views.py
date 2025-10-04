@@ -20,6 +20,7 @@ from django.template.loader import render_to_string
 from django.http import HttpResponse
 
 
+
 def dashboard(request):
     """
     Home -> Catalog search.
@@ -396,3 +397,122 @@ def propose_edit_fragment(request, row_id: str):
         request=request,
     )
     return HttpResponse(html)
+
+
+
+@login_required
+def edit_mode(request, map_name: str, version: int):
+    """
+    Full-page edit mode:
+    - Breadcrumbs
+    - Per-row 'Propose Edit'
+    - 'Add New Row'
+    - Cancel (with confirm) back to catalog
+    Header row stays on top; values are listed in stable index order.
+    """
+    base_qs = AuthoredMapRow.objects.filter(map_name=map_name, version=version)
+    qs = base_qs.annotate(
+        header_order=Case(
+            When(row_type="header", then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        )
+    ).order_by("header_order", "index_id")
+
+    header = qs.filter(row_type="header").first()
+    values = qs.exclude(row_type="header")
+    info = MapInfo.objects.filter(map_name=map_name).first()
+
+    return render(
+        request,
+        "maps/edit_mode.html",
+        {
+            "map_name": map_name,
+            "version": version,
+            "header": header,
+            "rows": values,
+            "total_rows": values.count(),
+            "info": info,
+        },
+    )
+
+
+@login_required
+def propose_edit_full(request, row_id: str):
+    """
+    Full-page propose-edit for a single row (not in the split pane).
+    """
+    row = get_object_or_404(AuthoredMapRow, row_id=row_id)
+
+    if request.method == "POST":
+        form = AuthoredMapRowForm(request.POST, instance=row)
+        if form.is_valid():
+            changes = {}
+            for field, value in form.cleaned_data.items():
+                if field in ["index_id", "row_id", "load_dttm", "modified_dttm", "version"]:
+                    continue
+                if getattr(row, field) != value:
+                    changes[field] = value
+
+            if not changes:
+                messages.info(request, "No changes detected.")
+                return redirect("maps:edit_mode", map_name=row.map_name, version=row.version)
+
+            changes.update({
+                "row_id": row.row_id,
+                "map_name": row.map_name,
+                "operation": "update",
+                "provider_sid": request.user.username,
+            })
+
+            ChangeRequest.objects.create(
+                actor=request.user,
+                map_name=row.map_name,
+                target_row_id=row.row_id,
+                payload=changes,
+            )
+            messages.success(request, "Proposed changes submitted for approval.")
+            return redirect("maps:approvals")
+    else:
+        form = AuthoredMapRowForm(instance=row)
+
+    return render(request, "maps/propose_edit_full.html", {"form": form, "row": row})
+
+
+@login_required
+def add_row(request, map_name: str, version: int):
+    """
+    Full-page add-new-row. Creates a PENDING ChangeRequest(operation='insert').
+    """
+    # create a temporary instance with initial map_name/version so form shows context
+    temp = AuthoredMapRow(map_name=map_name, version=version, row_type="values", operation="insert")
+
+    if request.method == "POST":
+        form = AuthoredMapRowForm(request.POST, instance=temp)
+        if form.is_valid():
+            payload = {}
+            for field, value in form.cleaned_data.items():
+                # exclude system/computed fields
+                if field in ["index_id", "row_id", "load_dttm", "modified_dttm", "version"]:
+                    continue
+                payload[field] = value
+
+            # required identifiers
+            payload.update({
+                "map_name": map_name,
+                "operation": "insert",
+                "provider_sid": request.user.username,
+                "row_type": payload.get("row_type") or "values",
+            })
+
+            ChangeRequest.objects.create(
+                actor=request.user,
+                map_name=map_name,
+                payload=payload,
+            )
+            messages.success(request, "Insert request submitted for approval.")
+            return redirect("maps:edit_mode", map_name=map_name, version=version)
+    else:
+        form = AuthoredMapRowForm(instance=temp)
+
+    return render(request, "maps/add_row.html", {"form": form, "map_name": map_name, "version": version})

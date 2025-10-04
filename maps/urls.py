@@ -15,4 +15,7 @@ urlpatterns = [
     path("propose/<str:row_id>/", views.propose_edit, name="propose_edit"),
     path("view-fragment/<str:map_name>/<int:version>/", views.map_version_fragment, name="map_version_fragment"),
     path("propose-fragment/<str:row_id>/", views.propose_edit_fragment, name="propose_edit_fragment"),
+    path("edit-mode/<str:map_name>/<int:version>/", views.edit_mode, name="edit_mode"),
+    path("propose/full/<str:row_id>/", views.propose_edit_full, name="propose_edit_full"),
+    path("add-row/<str:map_name>/<int:version>/", views.add_row, name="add_row"),
 ]
