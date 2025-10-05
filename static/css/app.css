@@ -97,3 +97,36 @@ td.is-long {
 /* Tiny muted meta labels */
 .meta-label { font-size: 0.85rem; color: #6c757d; }
 .meta-value { font-weight: 600; }
+
+/* --- Inline 'Add New Row' UX --- */
+.mini-head {
+  font-size: 0.72rem;
+  color: #6c757d;
+  white-space: nowrap;
+  margin-bottom: 0.15rem;
+}
+
+/*
+.inline-input { min-width: 0 !important; width: 100%; }
+
+.inline-input {
+  min-width: 10rem;          # gives space to see the string number 
+}
+
+.inline-input[disabled] {
+  background: #f8f9fa;
+  cursor: not-allowed;
+  opacity: .8;
+}*/
+
+/* Batch add UX */
+.mini-head { font-size: 0.72rem; color: #6c757d; white-space: nowrap; margin-bottom: 0.15rem; }
+.inline-input { min-width: 10rem; }
+.inline-input[disabled] { background: #f8f9fa; cursor: not-allowed; opacity: .8; }
+
+/* duplicate highlighting (new rows in batch) */
+.dup-error { background: #ffe8e8 !important; }
+.dup-error input { border-color: #dc3545 !important; }
+
+/* mark existing rows that conflict with batch */
+.dup-existing { background: #fff0f0; }

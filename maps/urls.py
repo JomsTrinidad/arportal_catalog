@@ -24,5 +24,8 @@ urlpatterns = [
     path("change-summary/<str:map_name>/<int:version>/", views.change_summary, name="change_summary"),
     path("request-delete/<str:row_id>/", views.request_delete, name="request_delete"),
     path("request-undelete/<str:row_id>/", views.request_undelete, name="request_undelete"),
+    path("queue-add-header/<str:map_name>/<int:version>/", views.queue_add_header, name="queue_add_header"),
+    path("queue-bulk-insert/<str:map_name>/<int:version>/", views.queue_bulk_insert, name="queue_bulk_insert"),
+
 
 ]

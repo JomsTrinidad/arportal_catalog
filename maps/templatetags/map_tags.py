@@ -48,3 +48,10 @@ def string_value_filter(obj, i):
     except Exception:
         return ""
     return getattr(obj, f"string_{idx:02d}", "")
+
+@register.filter
+def index(lst, i):
+    try:
+        return lst[int(i)-1]
+    except Exception:
+        return ""

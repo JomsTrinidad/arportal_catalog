@@ -28,8 +28,8 @@
 
 <div class="d-flex justify-content-between align-items-center mb-2">
   <div class="btn-group">
-    <a href="{% url 'maps:edit_mode' map_name version %}?new=1&new_row_type=values#new-row" class="btn btn-success">Add New Row</a>
-    <a href="{% url 'maps:edit_mode' map_name version %}?new=1&new_row_type=header#new-row" class="btn btn-outline-success">Add New Header</a>
+    <a href="{% url 'maps:edit_mode' map_name version %}?new=1&new_row_type=values#attest-block" class="btn btn-success">Add New Row</a>
+    <a href="{% url 'maps:edit_mode' map_name version %}?new=1&new_row_type=header#new-header-controls" class="btn btn-outline-success">Add New Header</a>
   </div>
   <a href="{% url 'maps:catalog' %}"
      class="btn btn-outline-secondary"
@@ -41,106 +41,354 @@
 <div class="card shadow-sm">
   <div class="card-body p-0">
     <div class="table-responsive table-scroll">
-      <table class="table table-bordered table-hover table-sm mb-0 table-banded">
-        <thead>
-          <tr>
-            <th class="rownum-sticky" style="width:3.5rem; text-align:center; background:#f2f3f5;">#</th>
-            <th style="white-space:nowrap;">Actions</th>
-            <th>row_id</th>
-            <th>deleted_flag</th>
-            <th>row_type</th>
-            {% for i in FIELD_RANGE %}
-              <th>string_{{ i|stringformat:"02d" }}</th>
-            {% endfor %}
-          </tr>
-          {% if header %}
-          <tr class="field-header">
-            <th class="rownum-sticky" style="background:#4682B4;"></th>
-            <th><!-- actions --></th>
-            <th><!-- row_id --></th>
-            <th><!-- deleted_flag --></th>
-            <th>{{ header.row_type }}</th>
-            {% for i in FIELD_RANGE %}
-              {% string_value header i as val %}
-              <th>{{ val }}</th>
-            {% endfor %}
-          </tr>
-          {% endif %}
-        </thead>
-        <tbody>
-          {% for row in rows %}
-          <tr>
-            <td class="rownum-sticky text-center">{{ forloop.counter }}</td>
+      <form method="post" action="{% url 'maps:queue_bulk_insert' map_name version %}" id="bulk-form">
+        {% csrf_token %}
+        <table class="table table-bordered table-hover table-sm mb-0 table-banded">
+          <thead>
+            <tr>
+              <th class="rownum-sticky" style="width:3.5rem; text-align:center; background:#f2f3f5;">#</th>
+              <th style="white-space:nowrap;">Actions</th>
+              <th>row_id</th>
+              <th>deleted_flag</th>
+              <th>row_type</th>
+              {% for i in FIELD_RANGE %}
+                <th>string_{{ i|stringformat:"02d" }}</th>
+              {% endfor %}
+            </tr>
+            {% if header %}
+            <tr class="field-header">
+              <th class="rownum-sticky" style="background:#4682B4;"></th>
+              <th></th>
+              <th></th>
+              <th></th>
+              <th>{{ header.row_type }}</th>
+              {% for i in FIELD_RANGE %}
+                {% string_value header i as val %}
+                <th>{{ val }}</th>
+              {% endfor %}
+            </tr>
+            {% endif %}
+          </thead>
 
-                <td class="text-nowrap">
+          <tbody>
+            {% for row in rows %}
+            <tr class="{% if dup_existing_ids and row.row_id in dup_existing_ids %}dup-existing{% endif %}">
+              <td class="rownum-sticky text-center">{{ forloop.counter }}</td>
+
+              <td class="text-nowrap">
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'maps:propose_edit_full' row.row_id %}">Propose Edit</a>
                 {% if row.row_type != "header" %}
                   {% if row.deleted_flag|stringformat:"s"|upper == "Y" %}
                     <a class="btn btn-sm btn-outline-success"
-                      href="{% url 'maps:request_undelete' row.row_id %}"
-                      onclick="return confirm('Request UNDELETE for this row?');">
-                      Request Undelete
-                    </a>
+                       href="{% url 'maps:request_undelete' row.row_id %}"
+                       onclick="return confirm('Request UNDELETE for this row?');">Request Undelete</a>
                   {% else %}
                     <a class="btn btn-sm btn-outline-danger"
-                      href="{% url 'maps:request_delete' row.row_id %}"
-                      onclick="return confirm('Request DELETE for this row?');">
-                      Request Delete
-                    </a>
+                       href="{% url 'maps:request_delete' row.row_id %}"
+                       onclick="return confirm('Request DELETE for this row?');">Request Delete</a>
                   {% endif %}
                 {% endif %}
               </td>
 
-
-            <td><a href="{% url 'maps:detail' row.row_id %}" title="{{ row.row_id }}">{{ row.row_id }}</a></td>
-            <td>{{ row.deleted_flag }}</td>
-            <td>{{ row.row_type }}</td>
-            {% for i in FIELD_RANGE %}
-              {% string_value row i as val %}
-              <td class="{% if val|longer_than:30 %}is-long{% endif %}" title="{{ val }}">{{ val }}</td>
+              <td><a href="{% url 'maps:detail' row.row_id %}" title="{{ row.row_id }}">{{ row.row_id }}</a></td>
+              <td>{{ row.deleted_flag }}</td>
+              <td>{{ row.row_type }}</td>
+              {% for i in FIELD_RANGE %}
+                {% string_value row i as val %}
+                <td class="{% if val|longer_than:30 %}is-long{% endif %}" title="{{ val }}">{{ val }}</td>
+              {% endfor %}
+            </tr>
             {% endfor %}
-          </tr>
-          {% endfor %}
 
-          {% if show_new %}
-          <!-- Inline new-row editor at bottom -->
-          <tr id="new-row" class="inline-new-row">
-            <td class="rownum-sticky text-center">*</td>
-            <td class="text-nowrap"><span class="badge text-bg-success">New</span></td>
-            <td colspan="{{ FIELD_RANGE|length|add:3 }}">
-              <form method="post" action="{% url 'maps:queue_insert' map_name version %}">
-                {% csrf_token %}
-                <div class="row g-2">
-                  <div class="col-md-2">
-                    <label class="form-label">row_type</label>
-                    <select name="row_type" class="form-select">
-                      <option value="values" {% if new_row_type != 'header' %}selected{% endif %}>values</option>
-                      <option value="header" {% if new_row_type == 'header' %}selected{% endif %}>header</option>
-                    </select>
-                  </div>
-                  {% for i in FIELD_RANGE|slice:":6" %}
-                  <div class="col-md-2">
-                    <label class="form-label">string_{{ i|stringformat:"02d" }}</label>
-                    <input type="text" class="form-control" name="string_{{ i|stringformat:'02d' }}">
-                  </div>
-                  {% endfor %}
+            {% if show_new and new_row_type == 'values' %}
+            <!-- Compact controls row for batch: Tracking ID (Actions), Change Note (row_id+deleted_flag), buttons are moved to footer -->
+            <tr id="new-batch-controls" class="inline-new-row">
+              <td class="rownum-sticky text-center"></td>
+
+              <!-- Actions col: Tracking ID -->
+              <td>
+                <div class="d-flex flex-column">
+                  <label class="form-label mb-0">Tracking ID</label>
+                  <input type="text" class="form-control form-control-sm" name="tracking_id" placeholder="e.g., JIRA-1234" style="max-width: 14rem;">
                 </div>
-                <div class="mt-2 d-flex gap-2">
-                  <button class="btn btn-success">Queue Insert</button>
-                  <a href="{% url 'maps:edit_mode' map_name version %}" class="btn btn-outline-secondary"
-                     onclick="return confirm('Cancel adding a new row?');">Cancel</a>
+              </td>
+
+              <!-- row_id + deleted_flag (colspan=2): Change Note ends at deleted_flag -->
+              <td colspan="2">
+                <div class="d-flex flex-column">
+                  <label class="form-label mb-0">Change Note</label>
+                  <input type="text" class="form-control form-control-sm" name="change_note" placeholder="Describe these inserts…" style="max-width: 32rem;">
                 </div>
+              </td>
+
+              <!-- row_type (kept for alignment) -->
+              <td></td>
+
+              {% for i in FIELD_RANGE %}<td></td>{% endfor %}
+            </tr>
+
+            <!-- Attestation block across Actions -> row_type -->
+            <tr id="attest-block">
+              <td class="rownum-sticky text-center"></td>
+              <td colspan="4">
+                <div class="d-flex flex-column gap-2">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="attest" name="attest" value="1" required>
+                    <label class="form-check-label small" for="attest">
+                      I attest the data is accurate, contains no confidential or personally identifiable information,
+                      and I understand that once approved these changes will directly impact production tables that refer to this map.
+                    </label>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <input type="hidden" name="rows_count" id="rows-count" value="{{ bulk_rows|length|default:1 }}">
+                    <button class="btn btn-success btn-sm">Submit for Approval</button>
+                    <a href="{% url 'maps:edit_mode' map_name version %}" class="btn btn-outline-secondary btn-sm"
+                       onclick="return confirm('Cancel batch add?');">Cancel</a>
+                  </div>
+                </div>
+              </td>
+              {% for i in FIELD_RANGE %}<td></td>{% endfor %}
+            </tr>
+
+            <!-- Batch rows BELOW attestation -->
+            {% if bulk_rows %}
+              {% for br in bulk_rows %}
+              <tr class="inline-new-row batch-row {% if dup_indices and forloop.counter0 in dup_indices %}dup-error{% endif %}">
+                <td class="rownum-sticky text-center">+</td>
+
+                <!-- Actions: per-row Remove button -->
+                <td class="text-nowrap">
+                  <button type="button" class="btn btn-outline-danger btn-sm remove-batch-row">Remove</button>
+                </td>
+
+                <!-- row_id (computed later) -->
+                <td title="row_id will be generated on approval"></td>
+
+                <!-- deleted_flag: place the New badge here -->
+                <td class="text-nowrap"><span class="badge text-bg-success">New</span></td>
+
+                <!-- row_type -->
+                <td><span class="badge text-bg-secondary">values</span></td>
+
+                {% for i in FIELD_RANGE %}
+                  {% if i in active_indices %}
+                    {% with idx=i|stringformat:"02d" %}
+                    {% with key='string_'|add:idx %}
+                    <td>
+                      <input
+                        type="text"
+                        class="form-control form-control-sm inline-input"
+                        name="rows-{{ forloop.parentloop.counter0 }}-{{ key }}"
+                        value="{{ br|get_item:key }}"
+                        autocomplete="off"
+                        style="min-width:0;width:100%;"
+                        data-col="{{ idx }}"
+                      />
+                    </td>
+                    {% endwith %}
+                    {% endwith %}
+                  {% else %}
+                    <td></td>
+                  {% endif %}
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr class="inline-new-row batch-row" id="new-batch">
+                <td class="rownum-sticky text-center">+</td>
+
+                <!-- Actions: per-row Remove button -->
+                <td class="text-nowrap">
+                  <button type="button" class="btn btn-outline-danger btn-sm remove-batch-row">Remove</button>
+                </td>
+
+                <!-- row_id (computed later) -->
+                <td title="row_id will be generated on approval"></td>
+
+                <!-- deleted_flag: New badge here -->
+                <td class="text-nowrap"><span class="badge text-bg-success">New</span></td>
+
+                <!-- row_type -->
+                <td><span class="badge text-bg-secondary">values</span></td>
+
+                {% for i in FIELD_RANGE %}
+                  {% if i in active_indices %}
+                    <td>
+                      <input
+                        type="text"
+                        class="form-control form-control-sm inline-input"
+                        name="rows-0-string_{{ i|stringformat:'02d' }}"
+                        autocomplete="off"
+                        style="min-width:0;width:100%;"
+                        data-col="{{ i|stringformat:'02d' }}"
+                      />
+                    </td>
+                  {% else %}
+                    <td></td>
+                  {% endif %}
+                {% endfor %}
+              </tr>
+            {% endif %}
+            {% endif %}
+
+            {% if show_new and new_row_type == 'header' %}
+            <!-- Controls row for ADD HEADER; mirrors compact layout -->
+            <tr id="new-header-controls" class="inline-new-row">
+              <td class="rownum-sticky text-center"></td>
+
+              <!-- Actions: Tracking ID -->
+              <td>
+                <form method="post" action="{% url 'maps:queue_add_header' map_name version %}" id="header-form">
+                  {% csrf_token %}
+                  <div class="d-flex flex-column">
+                    <label class="form-label mb-0">Tracking ID</label>
+                    <input type="text" class="form-control form-control-sm" name="tracking_id" placeholder="e.g., JIRA-5678" style="max-width: 14rem;">
+                  </div>
+              </td>
+
+              <!-- row_id + deleted_flag: Change Note ends at deleted_flag -->
+              <td colspan="2">
+                <div class="d-flex flex-column">
+                  <label class="form-label mb-0">Change Note</label>
+                  <input type="text" class="form-control form-control-sm" name="change_note" placeholder="Describe the header being added…" style="max-width: 32rem;">
+                </div>
+              </td>
+
+              <!-- row_type: Queue Header / Cancel -->
+              <td class="text-nowrap">
+                <div class="d-flex gap-2">
+                  <button class="btn btn-success btn-sm">Queue Header</button>
+                  <a href="{% url 'maps:edit_mode' map_name version %}" class="btn btn-outline-secondary btn-sm"
+                     onclick="return confirm('Cancel adding a new header?');">Cancel</a>
+                </div>
+              </td>
+
+              {% for i in FIELD_RANGE %}<td></td>{% endfor %}
+            </tr>
+
+            <!-- Header edit row BELOW the controls, aligned with header columns -->
+            <tr id="new-header" class="inline-new-row">
+              <td class="rownum-sticky text-center">H+</td>
+              <td class="text-nowrap"><span class="badge text-bg-success">New Header</span></td>
+              <td title="editing header row via ChangeRequest"></td>
+              <td></td>
+              <td><span class="badge text-bg-secondary">header</span></td>
+
+              {% for i in FIELD_RANGE %}
+                {% with label=header_labels|index:i|default:'' %}
+                {% if i == last_active_idx|add:1 %}
+                  <td>
+                    <input
+                      type="text"
+                      class="form-control form-control-sm inline-input"
+                      name="string_{{ i|stringformat:'02d' }}"
+                      placeholder="Header label"
+                      autocomplete="off"
+                      style="min-width:0;width:100%;"
+                    />
+                  </td>
+                {% else %}
+                  <td></td>
+                {% endif %}
+                {% endwith %}
+              {% endfor %}
+
               </form>
-            </td>
-          </tr>
-          {% endif %}
-        </tbody>
-      </table>
+            </tr>
+            {% endif %}
+
+          </tbody>
+        </table>
+      </form>
     </div>
   </div>
+
   <div class="card-footer d-flex justify-content-between align-items-center small">
     <div>Total rows: <strong>{{ total_rows }}</strong></div>
     <div class="text-muted">{{ map_name }} v{{ version }}</div>
   </div>
 </div>
+
+{% if show_new and new_row_type == 'values' %}
+<script>
+(function(){
+  const tbody = document.querySelector('tbody');
+  const rowsCountInput = document.getElementById('rows-count');
+  const addBtn = document.getElementById('add-row-btn');
+  const removeBtn = document.getElementById('remove-row-btn'); // may be absent now; we still support if present.
+
+  function batchRows(){ return Array.from(tbody.querySelectorAll('tr.batch-row')); }
+  function countRows(){ return batchRows().length; }
+
+  function renumberNames(){
+    batchRows().forEach((tr, idx) => {
+      tr.querySelectorAll('input[name]').forEach(inp => {
+        inp.name = inp.name.replace(/rows-\\d+-/, `rows-${idx}-`);
+      });
+    });
+    if (rowsCountInput) rowsCountInput.value = countRows();
+  }
+
+  // Inline remove for a specific batch row
+  tbody.addEventListener('click', function(e){
+    if (e.target.closest('.remove-batch-row')) {
+      const rows = batchRows();
+      if (rows.length <= 1) return; // keep at least one
+      const tr = e.target.closest('tr.batch-row');
+      tr.remove();
+      renumberNames();
+    }
+  });
+
+  // Optional external add/remove buttons (if you keep them elsewhere)
+  addBtn?.addEventListener('click', () => {
+    const rows = batchRows();
+    if (rows.length >= 100) return alert('Maximum 100 rows per batch.');
+    const last = rows[rows.length - 1];
+    const clone = last.cloneNode(true);
+    clone.id = '';
+    clone.classList.remove('dup-error');
+    clone.querySelectorAll('input').forEach(inp => { inp.value = ''; inp.classList.remove('is-invalid'); });
+    last.after(clone);
+    renumberNames();
+    clone.scrollIntoView({behavior:'smooth', block:'center'});
+    const firstInput = clone.querySelector('input');
+    firstInput && firstInput.focus();
+  });
+
+  removeBtn?.addEventListener('click', () => {
+    const rows = batchRows();
+    if (rows.length <= 1) return;
+    rows[rows.length - 1].remove();
+    renumberNames();
+  });
+
+  // Require string_01 and string_02 per batch row
+  const form = document.getElementById('bulk-form');
+  form?.addEventListener('submit', function(e){
+    let ok = true;
+    batchRows().forEach(tr => {
+      tr.classList.remove('dup-error'); // reuse red bg for validation
+      const s01 = tr.querySelector('input[name*="string_01"]');
+      const s02 = tr.querySelector('input[name*="string_02"]');
+      [s01, s02].forEach(inp => { if (inp) inp.classList.remove('is-invalid'); });
+      if (!s01 || !s02 || !s01.value.trim() || !s02.value.trim()) {
+        ok = false;
+        tr.classList.add('dup-error');
+        if (s01 && !s01.value.trim()) s01.classList.add('is-invalid');
+        if (s02 && !s02.value.trim()) s02.classList.add('is-invalid');
+      }
+    });
+    if (!ok) {
+      e.preventDefault();
+      const firstBad = tbody.querySelector('tr.batch-row.dup-error input.is-invalid');
+      firstBad && firstBad.scrollIntoView({behavior:'smooth', block:'center'});
+      alert('Each new row requires values for string_01 and string_02.');
+    }
+  });
+
+  renumberNames();
+})();
+</script>
+{% endif %}
 {% endblock %}

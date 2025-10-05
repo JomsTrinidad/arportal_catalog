@@ -19,6 +19,8 @@ from .tables import RowTable
 from django.template.loader import render_to_string
 from django.http import HttpResponse
 
+import hashlib
+from django.utils.timezone import now
 
 def dashboard(request):
     """
@@ -398,15 +400,15 @@ def propose_edit_fragment(request, row_id: str):
     return HttpResponse(html)
 
 
+FIELD_RANGE = range(1, 66)
 
 @login_required
 def edit_mode(request, map_name: str, version: int):
     """
     Full-page edit mode with:
-    - Breadcrumbs
-    - Map meta (version, map_name, description, last_modified, created)
-    - Per-row 'Propose Edit'
-    - 'Add New Row' (inline at bottom if ?new=1)
+    - Meta (version, map_name, description, last_modified, created)
+    - Per-row propose edit / delete/undelete
+    - Batch Add Rows (spreadsheet-like) or Add Header (append only)
     """
     base_qs = AuthoredMapRow.objects.filter(map_name=map_name, version=version)
     qs = base_qs.annotate(
@@ -425,8 +427,29 @@ def edit_mode(request, map_name: str, version: int):
     last_modified = agg["last_modified"]
     created = agg["created"]
 
+    # Build header labels & active set
+    header_labels = []
+    active_indices = []
+    last_active_idx = 0
+    for i in FIELD_RANGE:
+        label = ""
+        if header:
+            label = (getattr(header, f"string_{i:02d}", "") or "").strip()
+        header_labels.append(label)
+        if label:
+            active_indices.append(i)
+            last_active_idx = i
+
+    # Existing row_ids (for duplicate marking of existing rows when a batch error occurs)
+    existing_row_ids = list(values.values_list("row_id", flat=True))
+
+    # Batch add UI toggles
     show_new = request.GET.get("new") == "1"
     new_row_type = request.GET.get("new_row_type", "values")  # 'values' or 'header'
+
+    # Optional context for re-render after a failed POST
+    bulk_rows = request.GET.get("bulk_rows")  # not used directly; kept for pattern
+    # But we’ll pass 'bulk_rows' & 'dup_indices' directly when returning from POST
 
     return render(
         request,
@@ -442,9 +465,17 @@ def edit_mode(request, map_name: str, version: int):
             "created": created,
             "show_new": show_new,
             "new_row_type": new_row_type,
+            "FIELD_RANGE": FIELD_RANGE,
+            "header_labels": header_labels,
+            "active_indices": active_indices,
+            "last_active_idx": last_active_idx,
+            "existing_row_ids": existing_row_ids,
+            # The two below are used when POST failed and we need to repopulate
+            "bulk_rows": request.session.pop("bulk_rows", None),
+            "dup_indices": request.session.pop("dup_indices", None),
+            "dup_existing_ids": request.session.pop("dup_existing_ids", None),
         },
     )
-
 
 @login_required
 def propose_edit_full(request, row_id: str):
@@ -533,22 +564,58 @@ def add_row(request, map_name: str, version: int):
 @login_required
 def queue_insert(request, map_name: str, version: int):
     """
-    Handle inline new-row form at the bottom of Edit Mode.
+    Handle the inline new-row form at the bottom of Edit Mode.
+    Always enforces row_type='values'.
+    Only accepts inputs for columns that already have header labels.
+    Accepts tracking_id and change_note.
     Creates a PENDING ChangeRequest(operation='insert').
     """
     if request.method != "POST":
         return redirect("maps:edit_mode", map_name=map_name, version=version)
 
-    payload = {"map_name": map_name, "operation": "insert", "provider_sid": request.user.username}
-    # Accept row_type + string_01..string_65
-    row_type = request.POST.get("row_type") or "values"
-    payload["row_type"] = row_type
+    # Determine active header columns
+    header = AuthoredMapRow.objects.filter(map_name=map_name, version=version, row_type="header").first()
+    active_set = set()
+    if header:
+        for i in range(1, 66):
+            if (getattr(header, f"string_{i:02d}", "") or "").strip():
+                active_set.add(i)
+
+    payload = {
+        "map_name": map_name,
+        "operation": "insert",
+        "provider_sid": request.user.username,
+        "row_type": "values",  # enforced
+        "tracking_id": (request.POST.get("tracking_id") or "").strip(),
+        "change_note": (request.POST.get("change_note") or "").strip(),
+    }
+
+    any_value = False
+    invalid_fields = []
 
     for i in range(1, 66):
         key = f"string_{i:02d}"
-        val = request.POST.get(key)
-        if val:
-            payload[key] = val
+        val = (request.POST.get(key) or "").strip()
+        if not val:
+            continue
+        if i not in active_set:
+            invalid_fields.append(key)
+            continue
+        payload[key] = val
+        any_value = True
+
+    if invalid_fields:
+        messages.error(
+            request,
+            "You entered data for columns without headers: "
+            + ", ".join(invalid_fields)
+            + ". Please add headers first (use 'Add New Header'), then add the row."
+        )
+        return redirect(f"{request.META.get('HTTP_REFERER', '') or '/'}#new-row")
+
+    if not any_value:
+        messages.warning(request, "Nothing entered. Please fill at least one string_XX field that has a header.")
+        return redirect("maps:edit_mode", map_name=map_name, version=version)
 
     ChangeRequest.objects.create(
         actor=request.user,
@@ -647,3 +714,187 @@ def request_undelete(request, row_id: str):
     )
     messages.success(request, "Undelete request submitted for approval.")
     return redirect("maps:edit_mode", map_name=row.map_name, version=row.version)
+
+
+# ---------------------------------------------------
+# Add a small handler to append a header cell (next available only)
+# ---------------------------------------------------
+
+@login_required
+def queue_add_header(request, map_name: str, version: int):
+    """
+    Inline 'Add New Header' — enables only the next available header cell
+    (string_{last_active_idx+1}) in the header row. Queues an UPDATE ChangeRequest
+    targeting the header row.
+    """
+    if request.method != "POST":
+        return redirect("maps:edit_mode", map_name=map_name, version=version)
+
+    header = get_object_or_404(AuthoredMapRow, map_name=map_name, version=version, row_type="header")
+
+    # Find next available header index
+    last = 0
+    for i in range(1, 66):
+        if (getattr(header, f"string_{i:02d}", "") or "").strip():
+            last = i
+    next_idx = last + 1
+    if next_idx > 65:
+        messages.error(request, "Maximum number of header columns (65) reached.")
+        return redirect("maps:edit_mode", map_name=map_name, version=version)
+
+    key = f"string_{next_idx:02d}"
+    label = (request.POST.get(key) or "").strip()
+    if not label:
+        messages.warning(request, "Please enter a header label.")
+        return redirect("maps:edit_mode", map_name=map_name, version=version)
+
+    payload = {
+        "operation": "update",
+        "row_id": header.row_id,
+        "map_name": map_name,
+        "provider_sid": request.user.username,
+        key: label,
+        "change_note": (request.POST.get("change_note") or "").strip(),
+        "tracking_id": (request.POST.get("tracking_id") or "").strip(),
+    }
+
+    ChangeRequest.objects.create(
+        actor=request.user,
+        map_name=map_name,
+        target_row_id=header.row_id,
+        payload=payload,
+    )
+    messages.success(request, f"Header '{key}' queued with label '{label}'.")
+    return redirect("maps:edit_mode", map_name=map_name, version=version)
+
+
+#---------------------------------------
+# Implement bulk insert with duplicate validation
+#---------------------------------------
+def _compute_row_id_like_model(map_name: str, version: int, row_type: str, strings: dict) -> str:
+    """
+    Compute row_id similarly to model's business-hash.
+    We include: map_name, version, row_type, and string_01..string_65 (empty treated as '').
+    Adjust if your actual model includes more business columns in the hash.
+    """
+    parts = [map_name, str(version), row_type]
+    for i in range(1, 66):
+        parts.append(strings.get(f"string_{i:02d}", "") or "")
+    payload = "||".join(parts)
+    return hashlib.md5(payload.encode("utf-8")).hexdigest()
+
+@login_required
+def queue_bulk_insert(request, map_name: str, version: int):
+    """
+    Batch add up to 100 rows.
+    - Only accepts values for columns that already have header labels.
+    - Validates duplicates within batch and against existing DB rows by row_id.
+    - On error re-renders edit mode with bad rows highlighted.
+    - On success, creates one ChangeRequest per row (PENDING).
+    """
+    if request.method != "POST":
+        return redirect("maps:edit_mode", map_name=map_name, version=version)
+
+    # Determine active header columns
+    header = AuthoredMapRow.objects.filter(map_name=map_name, version=version, row_type="header").first()
+    active_set = set()
+    if header:
+        for i in range(1, 66):
+            if (getattr(header, f"string_{i:02d}", "") or "").strip():
+                active_set.add(i)
+
+    # How many rows (capped at 100)
+    try:
+        rows_count = int(request.POST.get("rows_count", "0"))
+    except ValueError:
+        rows_count = 0
+    rows_count = max(0, min(100, rows_count))
+
+    # Tracking / change note once per batch
+    tracking_id = (request.POST.get("tracking_id") or "").strip()
+    change_note = (request.POST.get("change_note") or "").strip()
+
+    # Parse rows
+    bulk_rows = []        # list of dicts with string_XX only
+    computed_ids = []     # computed row_id per row (for duplicate detection)
+    dup_indices = set()   # 0-based indices of duplicate rows within batch
+    seen_ids = {}         # row_id -> first index
+
+    # Existing row_ids for this map/version
+    existing_ids = set(AuthoredMapRow.objects.filter(map_name=map_name, version=version, row_type="values").values_list("row_id", flat=True))
+    dup_existing_ids = set()  # subset that collide
+
+    for idx in range(rows_count):
+        row_data = {}
+        any_value = False
+        for i in range(1, 66):
+            key = f"rows-{idx}-string_{i:02d}"
+            val = (request.POST.get(key) or "").strip()
+            if not val:
+                continue
+            if i not in active_set:
+                # entered data for a non-header column → treat as invalid by ignoring it
+                # you can also abort here if you prefer hard fail.
+                continue
+            row_data[f"string_{i:02d}"] = val
+            any_value = True
+
+        if not any_value:
+            # Skip completely empty rows (user added but didn't type anything)
+            bulk_rows.append({})
+            computed_ids.append(None)
+            continue
+
+        # Compute row_id like the model (map_name, version, row_type='values', strings)
+        rid = _compute_row_id_like_model(map_name, version, "values", row_data)
+
+        # Duplicate within batch?
+        if rid in seen_ids:
+            dup_indices.add(seen_ids[rid])
+            dup_indices.add(idx)
+        else:
+            seen_ids[rid] = idx
+
+        # Duplicate vs existing?
+        if rid in existing_ids:
+            dup_existing_ids.add(rid)
+
+        bulk_rows.append(row_data)
+        computed_ids.append(rid)
+
+    # If duplicates found, bounce back with highlighting
+    if dup_indices or dup_existing_ids:
+        messages.error(
+            request,
+            "Duplicate rows detected. Please resolve the highlighted rows. "
+            + (f"({len(dup_indices)} in batch; {len(dup_existing_ids)} conflict with existing rows.)" if dup_indices or dup_existing_ids else "")
+        )
+        # Preserve what the user typed so we can re-render
+        request.session["bulk_rows"] = bulk_rows
+        request.session["dup_indices"] = sorted(list(dup_indices))
+        request.session["dup_existing_ids"] = list(dup_existing_ids)
+        return redirect(f"{request.build_absolute_uri()}?new=1&new_row_type=values#new-batch")
+
+    # No duplicates: create CRs
+    created = 0
+    for row_data in bulk_rows:
+        if not row_data:
+            continue
+        payload = {
+            "map_name": map_name,
+            "operation": "insert",
+            "provider_sid": request.user.username,
+            "row_type": "values",
+            "tracking_id": tracking_id,
+            "change_note": change_note,
+        }
+        payload.update(row_data)
+        ChangeRequest.objects.create(
+            actor=request.user,
+            map_name=map_name,
+            payload=payload,
+        )
+        created += 1
+
+    messages.success(request, f"Queued {created} insert(s) for approval.")
+    return redirect("maps:edit_mode", map_name=map_name, version=version)
